@@ -14,6 +14,7 @@
 # custom ignore
 /house-marketplace-resources
 /src-final
+ref.config.yml
 
 # misc
 .DS_Store

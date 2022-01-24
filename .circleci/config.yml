@@ -2,41 +2,98 @@
 # See: https://circleci.com/docs/2.0/configuration-reference
 version: 2.1
 
-orbs:
-  # The Node.js orb contains a set of prepackaged CircleCI configuration you can utilize
-  # Orbs reduce the amount of configuration required for common tasks.
-  # See the orb documentation here: https://circleci.com/developer/orbs/orb/circleci/node
-  node: circleci/node@4.7
+executors:
+  app-executor:
+    docker:
+      - image: circleci/node:16.13.2
+    # Directory where all circleci image will be added default is ~/project
+    working_directory: ~/repo
+
+aliases:
+  - &show-current-branch-name
+    run:
+      name: Show current branch
+      command: echo ${CIRCLE_BRANCH}
+  - &restore-cache
+    restore_cache:
+      keys:
+        - app-{{ checksum "package.json" }}
+        - app-
+  - &install-dependencies
+    run:
+      name: Install dependencies
+      command: npm install
+  # ? For yarn
+  # - run:
+  #     name: Install yarn
+  #     command: npm install -g yarn
+  # - run:
+  #     name: Install dependencies
+  #     command: yarn install
+  - &save-cache
+    save_cache:
+      key: app-{{ checksum "package.json" }}
+      paths:
+        - node_modules
+
+# orbs:
+#   # The Node.js orb contains a set of prepackaged CircleCI configuration you can utilize
+#   # Orbs reduce the amount of configuration required for common tasks.
+#   # See the orb documentation here: https://circleci.com/developer/orbs/orb/circleci/node
+#   node: circleci/node@4.7
+
+# jobs:
+#   build-and-test:
+#     docker:
+#       - image: cimg/node:16.10
+#     # Then run your tests!
+#     # CircleCI will report the results back to your VCS provider.
+#     steps:
+#       # Checkout the code as the first step.
+#       - checkout
+#       # Next, the node orb's install-packages step will install the dependencies from a package.json.
+#       # The orb install-packages step will also automatically cache them for faster future runs.
+#       - node/install-packages:
+#           # If you are using yarn, change the line below from "npm" to "yarn"
+#           pkg-manager: npm
+#       - run:
+#           name: Run tests
+#           command: npm test
 
 jobs:
-  # Below is the definition of your job to build and test your app, you can rename and customize it as you want.
-  build-and-test:
-    # These next lines define a Docker executor: https://circleci.com/docs/2.0/executor-types/
-    # You can specify an image from Dockerhub or use one of our Convenience Images from CircleCI's Developer Hub.
-    # A list of available CircleCI Docker Convenience Images are available here: https://circleci.com/developer/images/image/cimg/node
-    docker:
-      - image: cimg/node:16.10
-    # Then run your tests!
-    # CircleCI will report the results back to your VCS provider.
+  build:
+    executor: app-executor
     steps:
-      # Checkout the code as the first step.
       - checkout
-      # Next, the node orb's install-packages step will install the dependencies from a package.json.
-      # The orb install-packages step will also automatically cache them for faster future runs.
-      - node/install-packages:
-          # If you are using yarn, change the line below from "npm" to "yarn"
-          pkg-manager: npm
+      - *show-current-branch-name
+      - *restore-cache
+      - *install-dependencies
+      - *save-cache
+
+  test:
+    executor: app-executor
+    steps:
+      - checkout
+      - *show-current-branch-name
+      - *restore-cache
       - run:
           name: Run tests
           command: npm test
 
 workflows:
-  # Below is the definition of your workflow.
-  # Inside the workflow, you provide the jobs you want to run, e.g this workflow runs the build-and-test job above.
-  # CircleCI will run this workflow on every commit.
-  # For more details on extending your workflow, see the configuration docs: https://circleci.com/docs/2.0/configuration-reference/#workflows
-  sample:
+  build_test_and_deploy:
     jobs:
-      - build-and-test
-      # For running simple node tests, you could optionally use the node/test job from the orb to replicate and replace the job above in fewer lines.
-      # - node/test
+      - build
+          filters:
+            branches:
+              only:
+                - develop
+                - main
+      - test:
+          requires:
+            - build
+          filters:
+            branches:
+              only:
+                - develop
+                - main
